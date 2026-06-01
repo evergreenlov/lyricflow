@@ -938,21 +938,26 @@ function connectFirebase(configText, bandCode, isAuto = false) {
     if (typeof configText === 'object') {
       configObj = configText;
     } else {
-      // Limpiar código JS si el usuario pegó la declaración completa
-      let cleanText = configText.trim();
-      if (cleanText.includes('const firebaseConfig =')) {
-        cleanText = cleanText.substring(cleanText.indexOf('{'), cleanText.lastIndexOf('}') + 1);
+      const cleanText = configText.trim();
+      try {
+        // 1. Intentar parsear directamente si es un JSON limpio y válido
+        configObj = JSON.parse(cleanText);
+      } catch (e) {
+        // 2. Si falla, intentar limpiar formato JS object literal
+        let jsText = cleanText;
+        if (jsText.includes('const firebaseConfig =')) {
+          jsText = jsText.substring(jsText.indexOf('{'), jsText.lastIndexOf('}') + 1);
+        }
+        
+        // Agregar comillas solo a llaves de propiedades que no las tengan
+        jsText = jsText.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+        // Convertir comillas simples a dobles
+        jsText = jsText.replace(/'/g, '"');
+        // Quitar comas finales que rompen el parseador JSON
+        jsText = jsText.replace(/,\s*([}\]])/g, '$1');
+        
+        configObj = JSON.parse(jsText);
       }
-      
-      // Intentar forzar compatibilidad JSON básica si no está formateado estrictamente
-      // Añadir comillas a las propiedades
-      cleanText = cleanText.replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":');
-      // Convertir comillas simples a dobles
-      cleanText = cleanText.replace(/'/g, '"');
-      // Quitar comas finales que rompen el parseador JSON
-      cleanText = cleanText.replace(/,\s*([}\]])/g, '$1');
-      
-      configObj = JSON.parse(cleanText);
     }
     
     if (!configObj.apiKey || !configObj.projectId) {
