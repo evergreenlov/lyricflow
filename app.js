@@ -18,6 +18,12 @@ let autoScrollIntervalId = null;
 let isAutoScrolling = false;
 let showChordsPresentation = true;
 
+// Estado de Sincronización en la Nube (Firebase)
+let syncActive = false;
+let db = null;
+let syncUnsubscribe = null;
+let lastSyncedTime = 0;
+
 // --- ELEMENTOS DEL DOM ---
 const DOM = {
   // Paneles
@@ -90,6 +96,18 @@ const DOM = {
   tabBtnMain: document.getElementById('tab-btn-main'),
   tabBtnRehearsal: document.getElementById('tab-btn-rehearsal'),
   
+  // Sincronización en la nube (Firebase)
+  btnOpenSync: document.getElementById('btn-open-sync'),
+  syncStatusIndicator: document.getElementById('sync-status-indicator'),
+  syncModal: document.getElementById('sync-modal'),
+  btnCloseSyncModal: document.getElementById('btn-close-sync-modal'),
+  syncBandCode: document.getElementById('sync-band-code'),
+  syncFirebaseConfig: document.getElementById('sync-firebase-config'),
+  btnDisconnectSync: document.getElementById('btn-disconnect-sync'),
+  btnSaveSyncConfig: document.getElementById('btn-save-sync-config'),
+  syncModalStatusDot: document.getElementById('sync-modal-status-dot'),
+  syncModalStatusText: document.getElementById('sync-modal-status'),
+  
   // Toast
   toast: document.getElementById('toast'),
   toastMessage: document.getElementById('toast-message')
@@ -101,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   renderSongsList();
   renderRehearsalList();
+  autoConnectFirebase();
 });
 
 // --- CARGA Y GUARDADO DE DATOS (LOCALSTORAGE) ---
@@ -124,10 +143,12 @@ function loadData() {
 
 function saveSongs() {
   localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+  if (syncActive) uploadLocalData();
 }
 
 function saveSetlist() {
   localStorage.setItem('lyricflow_setlist', JSON.stringify(rehearsalSetlist));
+  if (syncActive) uploadLocalData();
 }
 
 // --- NOTIFICACIONES TOAST ---
@@ -849,4 +870,224 @@ function setupEventListeners() {
   DOM.tabBtnSongs.addEventListener('click', () => switchMobilePanel('songs'));
   DOM.tabBtnMain.addEventListener('click', () => switchMobilePanel('main'));
   DOM.tabBtnRehearsal.addEventListener('click', () => switchMobilePanel('rehearsal'));
+  
+  // Controladores del Modal de Sincronización en la Nube
+  DOM.btnOpenSync.addEventListener('click', () => {
+    DOM.syncModal.style.display = 'flex';
+    // Auto-rellenar configuraciones si existen
+    const savedConfig = localStorage.getItem('lyricflow_sync_config');
+    const savedCode = localStorage.getItem('lyricflow_sync_band_code');
+    if (savedConfig) DOM.syncFirebaseConfig.value = savedConfig;
+    if (savedCode) DOM.syncBandCode.value = savedCode;
+  });
+  
+  DOM.btnCloseSyncModal.addEventListener('click', () => {
+    DOM.syncModal.style.display = 'none';
+  });
+  
+  DOM.btnSaveSyncConfig.addEventListener('click', () => {
+    const configText = DOM.syncFirebaseConfig.value.trim();
+    const bandCode = DOM.syncBandCode.value.trim();
+    if (!configText || !bandCode) {
+      showToast("Por favor ingresa todos los campos");
+      return;
+    }
+    connectFirebase(configText, bandCode);
+  });
+  
+  DOM.btnDisconnectSync.addEventListener('click', () => {
+    disconnectFirebase();
+  });
 }
+
+// ==========================================================================
+// LÓGICA DE SINCRONIZACIÓN EN LA NUBE (FIREBASE FIRESTORE)
+// ==========================================================================
+
+function setSyncStatusUI(connected) {
+  syncActive = connected;
+  if (connected) {
+    DOM.syncStatusIndicator.classList.add('sync-active-dot');
+    DOM.syncModalStatusDot.style.backgroundColor = 'var(--color-success)';
+    DOM.syncModalStatusText.innerHTML = `<span id="sync-modal-status-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-success);"></span> Conectado`;
+    DOM.btnDisconnectSync.style.display = 'inline-flex';
+    DOM.btnSaveSyncConfig.textContent = 'Actualizar Config';
+  } else {
+    DOM.syncStatusIndicator.classList.remove('sync-active-dot');
+    DOM.syncStatusIndicator.style.backgroundColor = 'var(--color-danger)';
+    DOM.syncModalStatusDot.style.backgroundColor = 'var(--color-danger)';
+    DOM.syncModalStatusText.innerHTML = `<span id="sync-modal-status-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-danger);"></span> Desconectado`;
+    DOM.btnDisconnectSync.style.display = 'none';
+    DOM.btnSaveSyncConfig.textContent = 'Conectar';
+  }
+}
+
+function autoConnectFirebase() {
+  const savedConfig = localStorage.getItem('lyricflow_sync_config');
+  const savedCode = localStorage.getItem('lyricflow_sync_band_code');
+  
+  if (savedConfig && savedCode) {
+    connectFirebase(savedConfig, savedCode, true);
+  }
+}
+
+function connectFirebase(configText, bandCode, isAuto = false) {
+  try {
+    let configObj;
+    // Si ya viene de localStorage, se carga como objeto parsed
+    if (typeof configText === 'object') {
+      configObj = configText;
+    } else {
+      // Limpiar código JS si el usuario pegó la declaración completa
+      let cleanText = configText.trim();
+      if (cleanText.includes('const firebaseConfig =')) {
+        cleanText = cleanText.substring(cleanText.indexOf('{'), cleanText.lastIndexOf('}') + 1);
+      }
+      
+      // Intentar forzar compatibilidad JSON básica si no está formateado estrictamente
+      // Añadir comillas a las propiedades
+      cleanText = cleanText.replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":');
+      // Convertir comillas simples a dobles
+      cleanText = cleanText.replace(/'/g, '"');
+      // Quitar comas finales que rompen el parseador JSON
+      cleanText = cleanText.replace(/,\s*([}\]])/g, '$1');
+      
+      configObj = JSON.parse(cleanText);
+    }
+    
+    if (!configObj.apiKey || !configObj.projectId) {
+      throw new Error("El JSON no tiene apiKey o projectId válidos.");
+    }
+    
+    // Inicializar Firebase
+    if (firebase.apps.length > 0) {
+      firebase.app().delete().then(() => {
+        setupFirebase(configObj, bandCode, isAuto);
+      });
+    } else {
+      setupFirebase(configObj, bandCode, isAuto);
+    }
+  } catch (error) {
+    console.error("Error al inicializar Firebase:", error);
+    if (!isAuto) {
+      showToast("Error en formato JSON. Verifica tu configuración.");
+    }
+    setSyncStatusUI(false);
+  }
+}
+
+function setupFirebase(configObj, bandCode, isAuto) {
+  try {
+    firebase.initializeApp(configObj);
+    db = firebase.firestore();
+    setSyncStatusUI(true);
+    
+    localStorage.setItem('lyricflow_sync_config', JSON.stringify(configObj));
+    localStorage.setItem('lyricflow_sync_band_code', bandCode);
+    
+    if (!isAuto) {
+      showToast("Sincronización en la nube activada");
+      DOM.syncModal.style.display = 'none';
+    }
+    
+    startRealtimeSync(bandCode);
+  } catch (error) {
+    console.error("Error en configuración de Firebase:", error);
+    showToast("Error de conexión. Revisa tus credenciales.");
+    setSyncStatusUI(false);
+  }
+}
+
+function disconnectFirebase() {
+  if (syncUnsubscribe) {
+    syncUnsubscribe();
+    syncUnsubscribe = null;
+  }
+  
+  localStorage.removeItem('lyricflow_sync_config');
+  localStorage.removeItem('lyricflow_sync_band_code');
+  
+  db = null;
+  setSyncStatusUI(false);
+  showToast("Sincronización desactivada");
+  DOM.syncModal.style.display = 'none';
+}
+
+function startRealtimeSync(bandCode) {
+  if (!db) return;
+  
+  const docRef = db.collection('bands').doc(bandCode);
+  
+  syncUnsubscribe = docRef.onSnapshot((doc) => {
+    if (!doc.exists) {
+      uploadLocalData(docRef);
+      return;
+    }
+    
+    const cloudData = doc.data();
+    const cloudTime = cloudData.lastUpdated || 0;
+    
+    // Sincronizar si la nube es más reciente
+    if (cloudTime > lastSyncedTime) {
+      lastSyncedTime = cloudTime;
+      
+      let changed = false;
+      
+      if (cloudData.songs && JSON.stringify(cloudData.songs) !== JSON.stringify(songs)) {
+        songs = cloudData.songs;
+        localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+        changed = true;
+      }
+      
+      if (cloudData.setlist && JSON.stringify(cloudData.setlist) !== JSON.stringify(rehearsalSetlist)) {
+        rehearsalSetlist = cloudData.setlist;
+        localStorage.setItem('lyricflow_setlist', JSON.stringify(rehearsalSetlist));
+        changed = true;
+      }
+      
+      if (changed) {
+        renderSongsList(DOM.searchInput.value);
+        renderRehearsalList();
+        
+        // Mantener seleccionada la canción
+        if (currentSongId) {
+          const songExists = songs.find(s => s.id === currentSongId);
+          if (songExists) {
+            selectSong(currentSongId);
+          } else {
+            currentSongId = null;
+            DOM.detailView.style.display = 'none';
+            DOM.welcomeView.style.display = 'flex';
+          }
+        }
+        showToast("Nube sincronizada");
+      }
+    }
+  }, (error) => {
+    console.error("Error al recibir actualizaciones de la nube:", error);
+    showToast("Error de red con la nube");
+  });
+}
+
+function uploadLocalData(docRef = null) {
+  if (!db) return;
+  
+  const bandCode = localStorage.getItem('lyricflow_sync_band_code');
+  if (!bandCode) return;
+  
+  const ref = docRef || db.collection('bands').doc(bandCode);
+  
+  const now = Date.now();
+  lastSyncedTime = now;
+  
+  ref.set({
+    songs: songs,
+    setlist: rehearsalSetlist,
+    lastUpdated: now
+  }).then(() => {
+    console.log("Datos locales subidos a la nube.");
+  }).catch((error) => {
+    console.error("Error al subir datos locales:", error);
+  });
+}
+
