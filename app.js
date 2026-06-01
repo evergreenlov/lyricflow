@@ -8,6 +8,7 @@ let rehearsalSetlist = [];
 let currentSongId = null;
 let showChords = true;
 let isEditMode = false;
+let currentTheme = 'dark';
 
 // Estado del Modo Presentación (Ensayo)
 let presentationIndex = 0;
@@ -120,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSongsList();
   renderRehearsalList();
   autoConnectFirebase();
+  initTheme();
 });
 
 // --- CARGA Y GUARDADO DE DATOS (LOCALSTORAGE) ---
@@ -871,6 +873,9 @@ function setupEventListeners() {
   DOM.tabBtnMain.addEventListener('click', () => switchMobilePanel('main'));
   DOM.tabBtnRehearsal.addEventListener('click', () => switchMobilePanel('rehearsal'));
   
+  // Botón de alternar tema claro/oscuro
+  document.getElementById('btn-toggle-theme').addEventListener('click', toggleTheme);
+  
   // Controladores del Modal de Sincronización en la Nube
   DOM.btnOpenSync.addEventListener('click', () => {
     DOM.syncModal.style.display = 'flex';
@@ -1094,5 +1099,36 @@ function uploadLocalData(docRef = null) {
   }).catch((error) => {
     console.error("Error al subir datos locales:", error);
   });
+}
+
+// ==========================================================================
+// LÓGICA DEL TEMA VISUAL (CLARO / OSCURO)
+// ==========================================================================
+
+function initTheme() {
+  const savedTheme = localStorage.getItem('lyricflow_theme') || 'dark';
+  setTheme(savedTheme);
+}
+
+function setTheme(theme) {
+  currentTheme = theme;
+  if (theme === 'light') {
+    document.body.classList.add('light-theme');
+    document.getElementById('theme-icon-sun').style.display = 'inline-block';
+    document.getElementById('theme-icon-moon').style.display = 'none';
+  } else {
+    document.body.classList.remove('light-theme');
+    document.getElementById('theme-icon-sun').style.display = 'none';
+    document.getElementById('theme-icon-moon').style.display = 'inline-block';
+  }
+  localStorage.setItem('lyricflow_theme', theme);
+}
+
+function toggleTheme() {
+  if (currentTheme === 'light') {
+    setTheme('dark');
+  } else {
+    setTheme('light');
+  }
 }
 

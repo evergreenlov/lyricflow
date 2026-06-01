@@ -1098,3 +1098,35 @@ body {
   animation: pulse-green 2s infinite;
 }
 
+/* ==========================================================================
+   TEMA CLARO (LIGHT THEME)
+   ========================================================================== */
+.light-theme {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-border-active: rgba(99, 102, 241, 0.4);
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  
+  --color-primary-glow: rgba(99, 102, 241, 0.06);
+  --color-accent-glow: rgba(20, 184, 166, 0.06);
+  
+  --color-chord: #0284c7; /* Sky 600 - Excelente contraste y legibilidad */
+  
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.02) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(20, 184, 166, 0.02) 0%, transparent 40%);
+}
+
+.light-theme .chord-wrapper::before {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+
