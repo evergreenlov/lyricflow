@@ -86,6 +86,8 @@ const DOM = {
   btnFontInc: document.getElementById('btn-font-inc'),
   btnPresChords: document.getElementById('btn-pres-chords'),
   btnPresScroll: document.getElementById('btn-pres-scroll'),
+  inputScrollSpeed: document.getElementById('input-scroll-speed'),
+  scrollSpeedVal: document.getElementById('scroll-speed-val'),
   btnClosePresentation: document.getElementById('btn-close-presentation'),
   btnPresPrev: document.getElementById('btn-pres-prev'),
   btnPresNext: document.getElementById('btn-pres-next'),
@@ -368,7 +370,7 @@ function renderRehearsalList() {
     item.className = 'rehearsal-item';
     item.innerHTML = `
       <div class="rehearsal-index">${index + 1}</div>
-      <div class="rehearsal-song-title">${escapeHTML(song.title)}</div>
+      <div class="rehearsal-song-title" style="cursor: pointer; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color var(--transition-fast);" onmouseover="this.style.textDecorationColor='var(--color-accent)'" onmouseout="this.style.textDecorationColor='transparent'">${escapeHTML(song.title)}</div>
       ${song.key ? `<div class="rehearsal-song-key">${escapeHTML(song.key)}</div>` : ''}
       
       <!-- Controles de Ordenación -->
@@ -386,6 +388,12 @@ function renderRehearsalList() {
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     `;
+    
+    // Al hacer clic en el título de la canción del setlist, se abre el modo ensayo en esa canción directamente
+    const titleEl = item.querySelector('.rehearsal-song-title');
+    titleEl.addEventListener('click', () => {
+      startPresentationModeAtIndex(index);
+    });
     
     DOM.rehearsalListContainer.appendChild(item);
   });
@@ -553,9 +561,13 @@ function deleteCurrentSong() {
 
 // --- MODO PRESENTACIÓN (ENSAYO EN PANTALLA COMPLETA) ---
 function startPresentationMode() {
+  startPresentationModeAtIndex(0);
+}
+
+function startPresentationModeAtIndex(index) {
   if (rehearsalSetlist.length === 0) return;
   
-  presentationIndex = 0;
+  presentationIndex = index;
   showChordsPresentation = showChords;
   DOM.presentationMode.classList.add('active');
   
@@ -669,7 +681,7 @@ function stopMetronome() {
   DOM.btnPresMetroToggle.classList.add('btn-secondary');
 }
 
-// Desplazamiento Automático (AutoScroll)
+// Desplazamiento Automático (AutoScroll) con Velocidad Ajustable
 function toggleAutoScroll() {
   if (isAutoScrolling) {
     stopAutoScroll();
@@ -679,16 +691,26 @@ function toggleAutoScroll() {
     DOM.btnPresScroll.classList.remove('btn-accent');
     DOM.btnPresScroll.textContent = "Pausar Scroll";
     
-    autoScrollIntervalId = setInterval(() => {
-      DOM.presLyricsScroll.scrollTop += 1;
-      
-      // Detener al final del scroll
-      const maxScroll = DOM.presLyricsScroll.scrollHeight - DOM.presLyricsScroll.clientHeight;
-      if (DOM.presLyricsScroll.scrollTop >= maxScroll - 1) {
-        stopAutoScroll();
-      }
-    }, 45); // Ajustar velocidad aquí
+    runScrollInterval();
   }
+}
+
+function runScrollInterval() {
+  if (autoScrollIntervalId) clearInterval(autoScrollIntervalId);
+  
+  const speed = parseInt(DOM.inputScrollSpeed.value);
+  // Mapear velocidad 1-10 a milisegundos de intervalo (1 -> 150ms, 10 -> 15ms)
+  const intervalMs = 160 - (speed * 14);
+  
+  autoScrollIntervalId = setInterval(() => {
+    DOM.presLyricsScroll.scrollTop += 1;
+    
+    // Detener al final del scroll
+    const maxScroll = DOM.presLyricsScroll.scrollHeight - DOM.presLyricsScroll.clientHeight;
+    if (DOM.presLyricsScroll.scrollTop >= maxScroll - 1) {
+      stopAutoScroll();
+    }
+  }, intervalMs);
 }
 
 function stopAutoScroll() {
@@ -833,6 +855,14 @@ function setupEventListeners() {
   DOM.btnPresNext.addEventListener('click', () => navigatePresentation(1));
   DOM.btnPresMetroToggle.addEventListener('click', toggleMetronome);
   DOM.btnPresScroll.addEventListener('click', toggleAutoScroll);
+  
+  // Sintonizador de velocidad del AutoScroll
+  DOM.inputScrollSpeed.addEventListener('input', (e) => {
+    DOM.scrollSpeedVal.textContent = e.target.value;
+    if (isAutoScrolling) {
+      runScrollInterval();
+    }
+  });
   
   DOM.btnPresChords.addEventListener('click', () => {
     showChordsPresentation = !showChordsPresentation;
