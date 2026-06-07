@@ -71,6 +71,8 @@ const DOM = {
   btnClearRehearsal: document.getElementById('btn-clear-rehearsal'),
   btnExportData: document.getElementById('btn-export-data'),
   btnImportData: document.getElementById('btn-import-data'),
+  btnExportDataLeft: document.getElementById('btn-export-data-left'),
+  btnImportDataLeft: document.getElementById('btn-import-data-left'),
   importFileInput: document.getElementById('import-file-input'),
   
   // Modo Presentación
@@ -847,6 +849,8 @@ function setupEventListeners() {
   DOM.btnStartRehearsal.addEventListener('click', startPresentationMode);
   DOM.btnExportData.addEventListener('click', exportSongsData);
   DOM.btnImportData.addEventListener('click', triggerImportFileInput);
+  if (DOM.btnExportDataLeft) DOM.btnExportDataLeft.addEventListener('click', exportSongsData);
+  if (DOM.btnImportDataLeft) DOM.btnImportDataLeft.addEventListener('click', triggerImportFileInput);
   DOM.importFileInput.addEventListener('change', importSongsData);
   
   // Presentación
@@ -1067,16 +1071,53 @@ function startRealtimeSync(bandCode) {
     const cloudData = doc.data();
     const cloudTime = cloudData.lastUpdated || 0;
     
-    // Sincronizar si la nube es más reciente
+    // Sincronizar si la nube es más reciente o si es la primera sincronización
     if (cloudTime > lastSyncedTime) {
+      const firstSync = (lastSyncedTime === 0);
       lastSyncedTime = cloudTime;
       
       let changed = false;
       
-      if (cloudData.songs && JSON.stringify(cloudData.songs) !== JSON.stringify(songs)) {
-        songs = cloudData.songs;
-        localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
-        changed = true;
+      if (cloudData.songs) {
+        if (firstSync) {
+          // 1. Crear respaldo local de seguridad en localStorage antes de sincronizar por primera vez
+          if (localStorage.getItem('lyricflow_songs')) {
+            localStorage.setItem('lyricflow_songs_backup', localStorage.getItem('lyricflow_songs'));
+          }
+          if (localStorage.getItem('lyricflow_setlist')) {
+            localStorage.setItem('lyricflow_setlist_backup', localStorage.getItem('lyricflow_setlist'));
+          }
+          
+          // 2. Fusión inteligente en la primera sincronización (no sobrescribir local)
+          let mergedSongs = [...cloudData.songs];
+          let needsUpload = false;
+          
+          songs.forEach(localSong => {
+            const existsInCloud = mergedSongs.some(s => s.id === localSong.id);
+            if (!existsInCloud) {
+              mergedSongs.push(localSong);
+              needsUpload = true;
+            }
+          });
+          
+          if (needsUpload) {
+            songs = mergedSongs;
+            localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+            uploadLocalData(docRef);
+            changed = true;
+          } else if (JSON.stringify(cloudData.songs) !== JSON.stringify(songs)) {
+            songs = cloudData.songs;
+            localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+            changed = true;
+          }
+        } else {
+          // Sincronización normal posterior
+          if (JSON.stringify(cloudData.songs) !== JSON.stringify(songs)) {
+            songs = cloudData.songs;
+            localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+            changed = true;
+          }
+        }
       }
       
       if (cloudData.setlist && JSON.stringify(cloudData.setlist) !== JSON.stringify(rehearsalSetlist)) {
@@ -1100,7 +1141,7 @@ function startRealtimeSync(bandCode) {
             DOM.welcomeView.style.display = 'flex';
           }
         }
-        showToast("Nube sincronizada");
+        showToast(firstSync ? "Sincronización inicial completada" : "Nube sincronizada");
       }
     }
   }, (error) => {

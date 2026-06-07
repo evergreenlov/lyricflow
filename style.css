@@ -424,6 +424,7 @@ body {
   margin-bottom: 0.75rem;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .chord-wrapper {
@@ -907,7 +908,7 @@ body {
 .presentation-lyrics-wrapper {
   width: 100%;
   max-width: 800px;
-  text-align: left;
+  text-align: center;
   line-height: 2.2;
 }
 
