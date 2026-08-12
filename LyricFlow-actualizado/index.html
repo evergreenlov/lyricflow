@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LyricFlow - Cancionero & Ensayos Profesional</title>
+  <meta name="description" content="Guarda tus letras de canciones, organízalas alfabéticamente y planifica tus ensayos de manera profesional.">
+  
+  <!-- Iconos para Pantalla de Inicio (iOS) y Pestaña del Navegador -->
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- CONTENEDOR PRINCIPAL DE LA APLICACIÓN -->
+  <div class="app-container">
+
+    <!-- PANEL 1: BIBLIOTECA DE CANCIONES (IZQUIERDA) -->
+    <aside id="panel-songs" class="panel active-mobile-panel">
+      <div class="panel-header">
+        <div class="brand">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          LyricFlow
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button id="btn-open-sync" class="btn btn-secondary btn-icon-only" style="width: 32px; height: 32px;" title="Sincronización en la Nube">
+            <span id="sync-status-indicator" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-danger); transition: background-color var(--transition-fast);"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19A5.5 5.5 0 0 0 22 13.5a5.5 5.5 0 0 0-4.5-5.45A7 7 0 0 0 4 9.5 6 6 0 0 0 6 21h11.5z"></path></svg>
+          </button>
+          <button id="btn-toggle-theme" class="btn btn-secondary btn-icon-only" style="width: 32px; height: 32px;" title="Cambiar tema (Claro/Oscuro)">
+            <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.93 4.93l1.41 1.41"></path><path d="M17.66 17.66l1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M6.34 17.66l-1.41 1.41"></path><path d="M19.07 4.93l-1.41 1.41"></path></svg>
+            <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="panel-body">
+        <!-- Buscador -->
+        <div class="search-box">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="search-input" placeholder="Buscar título, artista o letra...">
+        </div>
+
+        <!-- Selector de Instrumento Transpositor -->
+        <div class="instrument-selector">
+          <label for="instrument-select">Instrumento</label>
+          <select id="instrument-select">
+            <option value="concert">Violín / Flauta (Do)</option>
+            <option value="bb">Trompeta / Clarinete / Saxo Tenor (Sib)</option>
+            <option value="eb">Saxo Alto / Saxo Barítono (Mib)</option>
+            <option value="f">Trompa (Fa)</option>
+          </select>
+        </div>
+
+        <div class="instrument-selector">
+          <label for="transpose-select">Tono</label>
+          <select id="transpose-select">
+            <option value="0">Original</option>
+            <option value="1">Subir 1 semitono</option>
+            <option value="2">Subir 1 tono</option>
+            <option value="3">Subir 1 tono y medio</option>
+            <option value="4">Subir 2 tonos</option>
+            <option value="5">Subir cuarta justa</option>
+            <option value="6">Subir tritono</option>
+            <option value="-1">Bajar 1 semitono</option>
+            <option value="-2">Bajar 1 tono</option>
+            <option value="-3">Bajar 1 tono y medio</option>
+            <option value="-4">Bajar 2 tonos</option>
+            <option value="-5">Bajar cuarta justa</option>
+            <option value="-6">Bajar tritono</option>
+          </select>
+        </div>
+
+        <!-- Botón Añadir Canción -->
+        <button id="btn-new-song" class="btn-add-float">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Nueva Canción
+        </button>
+
+        <!-- Botones de Exportar e Importar de la Biblioteca -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.75rem; margin-bottom: 0.75rem;">
+          <button id="btn-export-data-left" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.55rem 0.5rem;" title="Exportar todas las canciones a JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Exportar
+          </button>
+          <button id="btn-import-data-left" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.55rem 0.5rem;" title="Importar canciones desde archivo JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Importar
+          </button>
+          <button id="btn-share-data-left" class="btn btn-accent" style="grid-column: 1 / -1; font-size: 0.8rem; padding: 0.55rem 0.5rem;" title="Compartir o guardar una copia en Archivos">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            Compartir copia
+          </button>
+        </div>
+
+        <!-- Lista de Canciones Alfabética -->
+        <div id="songs-list-container" class="songs-list">
+          <!-- Renderizado dinámico desde JS -->
+        </div>
+      </div>
+    </aside>
+
+
+    <!-- PANEL 2: DETALLE / EDITOR DE CANCIÓN (CENTRO) -->
+    <main id="panel-main" class="panel">
+      
+      <!-- ESTADO DE BIENVENIDA (Por defecto) -->
+      <div id="welcome-view" class="welcome-state">
+        <div class="welcome-logo">
+          <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        </div>
+        <h2>¡Te damos la bienvenida a LyricFlow!</h2>
+        <p>Selecciona una canción de la biblioteca para ver su letra, o crea una nueva para empezar a ensayar con tu banda de manera profesional.</p>
+      </div>
+
+      <!-- VISTA DETALLE DE CANCIÓN (Oculta por defecto) -->
+      <div id="detail-view" class="song-view-container" style="display: none;">
+        <div class="song-view-header">
+          <div class="song-view-meta-left">
+            <h1 id="song-detail-title" class="song-view-title">Título de la Canción</h1>
+            <p id="song-detail-artist" class="song-view-artist">Artista / Banda</p>
+            <div class="song-view-info-chips">
+              <div class="info-chip">
+                <span>Tono:</span>
+                <strong id="song-detail-key">C</strong>
+              </div>
+              <div class="info-chip accent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span id="song-detail-bpm">120 BPM</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="song-view-actions">
+            <!-- Alternar Acordes -->
+            <button id="btn-toggle-chords" class="btn btn-secondary" title="Mostrar/Ocultar Acordes">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              <span>Acordes</span>
+            </button>
+            <!-- Añadir al ensayo -->
+            <button id="btn-add-to-setlist" class="btn btn-accent">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>
+              Al Ensayo
+            </button>
+            <!-- Editar -->
+            <button id="btn-edit-song" class="btn btn-secondary" title="Editar canción">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+              <span>Editar</span>
+            </button>
+            <!-- Eliminar -->
+            <button id="btn-delete-song" class="btn btn-danger" title="Eliminar canción">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+              <span>Eliminar</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Contenedor Letra -->
+        <div id="melody-viewer" class="melody-display" style="display: none;">
+          <!-- Melodía transpuesta dinámicamente -->
+        </div>
+        <div id="lyrics-viewer" class="lyrics-scroll-area">
+          <!-- Letras formateadas dinámicamente -->
+        </div>
+      </div>
+
+      <!-- FORMULARIO EDITOR (Oculto por defecto) -->
+      <div id="editor-view" class="editor-form" style="display: none;">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+            <span id="editor-title-text">Crear Canción</span>
+          </div>
+        </div>
+
+        <form id="song-form" class="editor-form" onsubmit="event.preventDefault();">
+          <div class="form-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="song-title">Título de la Canción *</label>
+                <input type="text" id="song-title" required placeholder="Ej: De Música Ligera">
+              </div>
+              <div class="form-group">
+                <label for="song-artist">Artista / Banda *</label>
+                <input type="text" id="song-artist" required placeholder="Ej: Soda Stereo">
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="song-key">Tono (Key)</label>
+                <select id="song-key">
+                  <!-- Tonos Mayores -->
+                  <option value="C">C (Do)</option>
+                  <option value="C#">C# (Do#)</option>
+                  <option value="Db">Db (Re bemol)</option>
+                  <option value="D">D (Re)</option>
+                  <option value="D#">D# (Re#)</option>
+                  <option value="Eb">Eb (Mi bemol)</option>
+                  <option value="E">E (Mi)</option>
+                  <option value="F">F (Fa)</option>
+                  <option value="F#">F# (Fa#)</option>
+                  <option value="Gb">Gb (Sol bemol)</option>
+                  <option value="G">G (Sol)</option>
+                  <option value="G#">G# (Sol#)</option>
+                  <option value="Ab">Ab (La bemol)</option>
+                  <option value="A">A (La)</option>
+                  <option value="A#">A# (La#)</option>
+                  <option value="Bb">Bb (Si bemol)</option>
+                  <option value="B">B (Si)</option>
+                  <!-- Tonos Menores -->
+                  <option value="Cm">Cm (Do menor)</option>
+                  <option value="C#m">C#m (Do# menor)</option>
+                  <option value="Dbm">Dbm (Re bemol menor)</option>
+                  <option value="Dm">Dm (Re menor)</option>
+                  <option value="D#m">D#m (Re# menor)</option>
+                  <option value="Ebm">Ebm (Mi bemol menor)</option>
+                  <option value="Em">Em (Mi menor)</option>
+                  <option value="Fm">Fm (Fa menor)</option>
+                  <option value="F#m">F#m (Fa# menor)</option>
+                  <option value="Gbm">Gbm (Sol bemol menor)</option>
+                  <option value="Gm">Gm (Sol menor)</option>
+                  <option value="G#m">G#m (Sol# menor)</option>
+                  <option value="Abm">Abm (La bemol menor)</option>
+                  <option value="Am">Am (La menor)</option>
+                  <option value="A#m">A#m (La# menor)</option>
+                  <option value="Bbm">Bbm (Si bemol menor)</option>
+                  <option value="Bm">Bm (Si menor)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="song-bpm">Tempo (BPM)</label>
+                <input type="number" id="song-bpm" min="30" max="300" placeholder="Ej: 120">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="song-lyrics">Letra con Acordes y Melodía</label>
+              <textarea id="song-lyrics" required placeholder="Ej:
+[Do] [Fa] [Sol]
+Re Re Mi
+Santo Santo Dios
+
+Ej. con menores/bemoles:
+[Rem] [Sib]
+Re-Re-Re-La-Sol-Fa-Mi-Re
+Aclamad a Dios con alegría toda la tierra
+
+También sirve:
+[Do]{Re}Santo [Fa]{Mi}Santo
+
+O una melodía sola arriba de la letra:
+Re-Re-Re-La-Sol-Fa-Mi-Re
+Aclamad a Dios con alegría toda la tierra"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="song-melody">Melodía general (opcional)</label>
+              <textarea id="song-melody" placeholder="Ej: C D E F G A B C&#10;o: C4 D4 E4 G4" style="min-height: 90px;"></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" id="btn-cancel-editor" class="btn btn-secondary">Cancelar</button>
+            <button type="submit" id="btn-save-song" class="btn btn-primary">Guardar Canción</button>
+          </div>
+        </form>
+      </div>
+
+    </main>
+
+
+    <!-- PANEL 3: SETLIST / PLANIFICACIÓN DE ENSAYO (DERECHA) -->
+    <aside id="panel-rehearsals" class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M3 20v-8a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8"></path><path d="M14 20v-4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4"></path></svg>
+          Setlist de Ensayo
+        </div>
+        <span id="rehearsal-count-badge" class="song-item-badge">0</span>
+      </div>
+
+      <div class="panel-body">
+        <div class="rehearsal-meta">
+          <span>Ensayo Programado</span>
+          <span id="rehearsal-total-bpm" style="font-weight: 600;">0 BPM prom.</span>
+        </div>
+
+        <!-- Lista del Setlist -->
+        <div id="rehearsal-list-container" class="rehearsal-list">
+          <!-- Renderizado dinámico o estado vacío -->
+        </div>
+
+        <!-- Acciones del Setlist -->
+        <div class="setlist-actions">
+          <button id="btn-start-rehearsal" class="btn btn-primary" style="width: 100%;" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Iniciar Ensayo
+          </button>
+          
+          <button id="btn-clear-rehearsal" class="btn btn-secondary" style="width: 100%;" disabled>
+            Limpiar Setlist
+          </button>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+            <button id="btn-export-data" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.25rem;" title="Exportar canciones a JSON">
+              Exportar
+            </button>
+            <button id="btn-import-data" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.25rem;" title="Importar canciones desde JSON">
+              Importar
+            </button>
+            <button id="btn-share-data" class="btn btn-accent" style="grid-column: 1 / -1; font-size: 0.8rem; padding: 0.5rem 0.25rem;" title="Compartir o guardar una copia en Archivos">
+              Compartir copia
+            </button>
+            <input type="file" id="import-file-input" accept=".json" style="display: none;">
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+
+  <!-- ==========================================================================
+       MODO PRESENTACIÓN / LECTURA A PANTALLA COMPLETA
+       ========================================================================== -->
+  <div id="presentation-mode" class="presentation-overlay">
+    
+    <header class="presentation-header">
+      <div class="presentation-title-area">
+        <div id="pres-index" class="presentation-index-badge">1 / 5</div>
+        <div class="presentation-song-details">
+          <h3 id="pres-title">Título de la Canción</h3>
+          <p id="pres-artist">Artista / Banda</p>
+        </div>
+      </div>
+
+      <div class="presentation-controls">
+        <!-- Metrónomo Visual -->
+        <div id="pres-metronome" class="metronome-area" style="display: none;">
+          <div id="pres-metro-dot" class="metronome-dot"></div>
+          <span id="pres-bpm-text" class="metronome-bpm">120 BPM</span>
+          <button id="btn-pres-metro-toggle" class="btn btn-secondary btn-icon-only" style="width: 28px; height: 28px;" title="Activar/Desactivar Metrónomo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </button>
+        </div>
+
+        <!-- Tamaño de Fuente -->
+        <div class="font-controls">
+          <button id="btn-font-dec" class="btn-font-adjust" title="Disminuir Letra">A-</button>
+          <button id="btn-font-inc" class="btn-font-adjust" title="Aumentar Letra">A+</button>
+        </div>
+
+        <!-- Alternar Acordes -->
+        <button id="btn-pres-chords" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+          Acordes
+        </button>
+
+        <!-- Botón AutoScroll y control de velocidad -->
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button id="btn-pres-scroll" class="btn btn-accent" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" title="Activar desplazamiento automático">
+            AutoScroll
+          </button>
+          <div id="scroll-speed-control" style="display: flex; align-items: center; gap: 0.35rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.35rem 0.65rem;">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Vel:</span>
+            <input type="range" id="input-scroll-speed" min="1" max="10" value="3" style="width: 50px; accent-color: var(--color-accent); cursor: pointer; background: transparent; border: none; padding: 0; margin: 0;">
+            <span id="scroll-speed-val" style="font-size: 0.75rem; font-family: var(--font-mono); font-weight: bold; width: 12px; text-align: center;">3</span>
+          </div>
+        </div>
+
+        <!-- Cerrar -->
+        <button id="btn-close-presentation" class="btn btn-danger" style="padding: 0.4rem 0.85rem; font-size: 0.85rem;">
+          Salir
+        </button>
+      </div>
+    </header>
+
+    <div class="presentation-body">
+      <!-- Flechas de Navegación -->
+      <button id="btn-pres-prev" class="btn-nav-arrow btn-nav-arrow-left">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+
+      <div id="pres-lyrics-scroll" class="presentation-lyrics-container">
+        <div id="pres-lyrics-area" class="presentation-lyrics-wrapper">
+          <!-- Letras a pantalla completa -->
+        </div>
+      </div>
+
+      <button id="btn-pres-next" class="btn-nav-arrow btn-nav-arrow-right">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      </button>
+    </div>
+
+  </div>
+
+
+  <!-- ==========================================================================
+       BARRA DE NAVEGACIÓN MÓVIL (TABS RESPONSIVOS)
+       ========================================================================== */ -->
+  <nav class="mobile-nav-bar">
+    <button id="tab-btn-songs" class="mobile-nav-btn active">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+      Biblioteca
+    </button>
+    <button id="tab-btn-main" class="mobile-nav-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+      Letra
+    </button>
+    <button id="tab-btn-rehearsal" class="mobile-nav-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M3 20v-8a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8"></path><path d="M14 20v-4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4"></path></svg>
+      Ensayo
+    </button>
+  </nav>
+
+
+  <!-- TOAST DE NOTIFICACIÓN -->
+  <div id="toast" class="toast-notification">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+    <span id="toast-message">Operación realizada con éxito</span>
+  </div>
+
+  <!-- MODAL DE CONFIGURACIÓN DE SINCRONIZACIÓN EN LA NUBE -->
+  <div id="sync-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>☁️ Sincronización en la Nube</h3>
+        <button id="btn-close-sync-modal" class="btn-close-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5;">
+          Sincroniza tus letras en tiempo real entre múltiples dispositivos. Usa el mismo código de sala en todos.
+        </p>
+        
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label for="sync-band-code">Código de Banda / Sala *</label>
+          <input type="text" id="sync-band-code" placeholder="Ej: banda-los-rockers-2026" required>
+          <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem; display: block;">
+            Usa el mismo código en todos tus dispositivos para sincronizar la misma biblioteca de canciones.
+          </small>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem; display: none;">
+          <label for="sync-firebase-config">Configuración de Firebase (JSON)</label>
+          <textarea id="sync-firebase-config" placeholder='{"apiKey": "AIzaSy...", "authDomain": "...", ...}' style="font-family: var(--font-mono); font-size: 0.8rem; min-height: 120px;"></textarea>
+          <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem; display: block;">
+            Pega el objeto "firebaseConfig" que te proporciona la consola de Firebase.
+          </small>
+        </div>
+        
+        <div class="sync-instructions" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.75rem; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.4;">
+          <strong>Configuración lista</strong>
+          <p style="margin-top: 0.25rem;">Firebase ya está configurado. Solo escribe un código de sala fácil de recordar, por ejemplo <code>evergreen-love</code>, y usa ese mismo código en los demás dispositivos.</p>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+        <span id="sync-modal-status" style="font-size: 0.85rem; color: var(--color-danger); display: flex; align-items: center; gap: 0.4rem; font-weight: 500;">
+          <span id="sync-modal-status-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-danger);"></span> Desconectado
+        </span>
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btn-disconnect-sync" class="btn btn-danger" style="display: none;">Desconectar</button>
+          <button id="btn-save-sync-config" class="btn btn-primary">Conectar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase App y Firestore (Compat SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <!-- SCRIPT DE DATOS INICIALES Y LÓGICA DE APLICACIÓN -->
+  <script src="songs-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
