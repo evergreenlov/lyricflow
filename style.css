@@ -183,6 +183,37 @@ body {
   pointer-events: none;
 }
 
+.instrument-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.instrument-selector label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-transform: uppercase;
+}
+
+.instrument-selector select {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  color: var(--text-primary);
+  font-family: var(--font-text);
+  font-size: 0.85rem;
+  transition: var(--transition-fast);
+}
+
+.instrument-selector select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-glow);
+}
+
 /* Lista Alfabética */
 .songs-list {
   display: flex;
@@ -408,6 +439,31 @@ body {
 }
 
 /* Letras de la Canción con Acordes */
+.melody-display {
+  margin: 1.5rem 2rem 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.melody-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-chord);
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
+}
+
+.melody-display pre,
+.presentation-melody pre {
+  white-space: pre-wrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
 .lyrics-scroll-area {
   flex: 1;
   overflow-y: auto;
@@ -421,40 +477,79 @@ body {
 /* Renderizador de Acordes */
 .lyrics-line {
   min-height: 1.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.45rem;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: flex-end;
 }
 
-.chord-wrapper {
-  position: relative;
-  display: inline-block;
-  margin-top: 1.35rem; /* Espacio para el acorde encima */
-  padding-right: 0.25rem;
+.notation-only-line {
+  opacity: 0.9;
 }
 
-.chord-wrapper::before {
-  content: attr(data-chord);
-  position: absolute;
-  top: -1.35rem;
-  left: 0;
-  font-weight: 700;
-  color: var(--color-chord);
+.chord-wrapper,
+.notation-wrapper {
+  display: inline-grid;
+  grid-template-rows: minmax(0.78rem, auto) minmax(0.82rem, auto) auto;
+  justify-items: center;
+  align-items: end;
+  row-gap: 0.03rem;
+  margin: 0 0.1rem 0.05rem;
+  vertical-align: bottom;
+}
+
+.inline-melody,
+.inline-chord {
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  line-height: 0.95;
   pointer-events: none;
-  background: rgba(10, 11, 16, 0.4);
-  padding: 0 0.15rem;
+  padding: 0 0.14rem;
   border-radius: 3px;
+  min-height: 0.82em;
+}
+
+.inline-melody {
+  font-weight: 800;
+  color: #facc15;
+  font-size: 0.88em;
+  background: rgba(250, 204, 21, 0.16);
+}
+
+.inline-chord {
+  font-weight: 700;
+  color: #a78bfa;
+  font-size: 0.92em;
+  background: rgba(167, 139, 250, 0.17);
+}
+
+.inline-melody:empty,
+.inline-chord:empty {
+  background: transparent;
+  padding: 0;
+}
+
+.inline-lyric {
+  min-width: 100%;
+  text-align: center;
 }
 
 /* Ocultar Acordes */
-.hide-chords .chord-wrapper {
-  margin-top: 0;
+.hide-chords.hide-melody .chord-wrapper,
+.hide-chords.hide-melody .notation-wrapper {
+  grid-template-rows: auto;
 }
-.hide-chords .chord-wrapper::before {
+.hide-chords .inline-chord,
+.hide-melody .inline-melody {
   display: none;
+}
+
+.hide-chords:not(.hide-melody) .notation-wrapper {
+  grid-template-rows: minmax(0.78rem, auto) auto;
+}
+
+.hide-melody:not(.hide-chords) .notation-wrapper {
+  grid-template-rows: minmax(0.82rem, auto) auto;
 }
 
 /* ==========================================================================
@@ -912,6 +1007,15 @@ body {
   line-height: 2.2;
 }
 
+.presentation-melody {
+  margin-bottom: 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.06);
+  text-align: left;
+}
+
 /* ==========================================================================
    VISTAS RESPONSIVAS & TABS PARA DISPOSITIVOS MÓVILES
    ========================================================================== */
@@ -1124,10 +1228,16 @@ body {
     radial-gradient(circle at 90% 80%, rgba(20, 184, 166, 0.02) 0%, transparent 40%);
 }
 
-.light-theme .chord-wrapper::before {
+.light-theme .inline-chord,
+.light-theme .inline-melody {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-
+.light-theme .inline-chord:empty,
+.light-theme .inline-melody:empty {
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+}

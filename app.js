@@ -6,9 +6,11 @@
 let songs = [];
 let rehearsalSetlist = [];
 let currentSongId = null;
-let showChords = true;
+let notationViewMode = 'all';
 let isEditMode = false;
 let currentTheme = 'dark';
+let selectedInstrument = 'concert';
+let manualTransposeSemitones = 0;
 
 // Estado del Modo Presentación (Ensayo)
 let presentationIndex = 0;
@@ -17,13 +19,23 @@ let metronomeIntervalId = null;
 let isMetronomePlaying = false;
 let autoScrollIntervalId = null;
 let isAutoScrolling = false;
-let showChordsPresentation = true;
+let presentationNotationViewMode = 'all';
 
 // Estado de Sincronización en la Nube (Firebase)
 let syncActive = false;
 let db = null;
 let syncUnsubscribe = null;
 let lastSyncedTime = 0;
+
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyBQQlwDlSpFAie6u6j64RwzntuXyUiBIY',
+  authDomain: 'lyric-flow-app-c6428.firebaseapp.com',
+  projectId: 'lyric-flow-app-c6428',
+  storageBucket: 'lyric-flow-app-c6428.firebasestorage.app',
+  messagingSenderId: '7486793398',
+  appId: '1:7486793398:web:fb1ff0ca79671918bbe817',
+  measurementId: 'G-T3MPJQ5R4G'
+};
 
 // --- ELEMENTOS DEL DOM ---
 const DOM = {
@@ -40,6 +52,8 @@ const DOM = {
   // Lista de canciones
   songsListContainer: document.getElementById('songs-list-container'),
   searchInput: document.getElementById('search-input'),
+  instrumentSelect: document.getElementById('instrument-select'),
+  transposeSelect: document.getElementById('transpose-select'),
   btnNewSong: document.getElementById('btn-new-song'),
   
   // Detalle de canción
@@ -47,6 +61,7 @@ const DOM = {
   songDetailArtist: document.getElementById('song-detail-artist'),
   songDetailKey: document.getElementById('song-detail-key'),
   songDetailBpm: document.getElementById('song-detail-bpm'),
+  melodyViewer: document.getElementById('melody-viewer'),
   lyricsViewer: document.getElementById('lyrics-viewer'),
   btnToggleChords: document.getElementById('btn-toggle-chords'),
   btnAddToSetlist: document.getElementById('btn-add-to-setlist'),
@@ -60,6 +75,7 @@ const DOM = {
   songArtistInput: document.getElementById('song-artist'),
   songKeySelect: document.getElementById('song-key'),
   songBpmInput: document.getElementById('song-bpm'),
+  songMelodyInput: document.getElementById('song-melody'),
   songLyricsInput: document.getElementById('song-lyrics'),
   btnCancelEditor: document.getElementById('btn-cancel-editor'),
   
@@ -71,8 +87,10 @@ const DOM = {
   btnClearRehearsal: document.getElementById('btn-clear-rehearsal'),
   btnExportData: document.getElementById('btn-export-data'),
   btnImportData: document.getElementById('btn-import-data'),
+  btnShareData: document.getElementById('btn-share-data'),
   btnExportDataLeft: document.getElementById('btn-export-data-left'),
   btnImportDataLeft: document.getElementById('btn-import-data-left'),
+  btnShareDataLeft: document.getElementById('btn-share-data-left'),
   importFileInput: document.getElementById('import-file-input'),
   
   // Modo Presentación
@@ -126,6 +144,8 @@ document.addEventListener('DOMContentLoaded', () => {
   renderRehearsalList();
   autoConnectFirebase();
   initTheme();
+  initInstrumentSelector();
+  runTranspositionConsoleTests();
 });
 
 // --- CARGA Y GUARDADO DE DATOS (LOCALSTORAGE) ---
@@ -166,32 +186,284 @@ function showToast(message) {
   }, 3000);
 }
 
+// --- TRANSPOSICIÓN PARA INSTRUMENTOS ---
+const CHROMATIC_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const SOLFEGE_SCALE = ['Do', 'Do#', 'Re', 'Re#', 'Mi', 'Fa', 'Fa#', 'Sol', 'Sol#', 'La', 'La#', 'Si'];
+
+const SOLFEGE_TO_ENGLISH = {
+  Do: 'C',
+  Re: 'D',
+  Mi: 'E',
+  Fa: 'F',
+  Sol: 'G',
+  La: 'A',
+  Si: 'B'
+};
+
+const ENHARMONIC_NOTES = {
+  Cb: 'B',
+  Db: 'C#',
+  Eb: 'D#',
+  Fb: 'E',
+  Gb: 'F#',
+  Ab: 'G#',
+  Bb: 'A#',
+  'B#': 'C',
+  'E#': 'F'
+};
+
+const SOLFEGE_ENHARMONIC_NOTES = {
+  Dob: 'B',
+  Reb: 'C#',
+  Mib: 'D#',
+  Fab: 'E',
+  Solb: 'F#',
+  Lab: 'G#',
+  Sib: 'A#',
+  'Si#': 'C',
+  'Mi#': 'F'
+};
+
+const TRANSPOSING_INSTRUMENTS = {
+  concert: { label: 'Violín / Flauta (Do)', semitones: 0 },
+  bb: { label: 'Sib', semitones: 2 },
+  eb: { label: 'Mib', semitones: -3 },
+  f: { label: 'Fa', semitones: 7 }
+};
+
+const NOTATION_VIEW_MODES = ['all', 'lyrics', 'chords', 'melody'];
+
+const NOTATION_VIEW_LABELS = {
+  all: 'Todo',
+  lyrics: 'Letra',
+  chords: 'Acordes',
+  melody: 'Melodía'
+};
+
+const SOLFEGE_NAME_PATTERN = '(?:Do|DO|do|Re|RE|re|Mi|MI|mi|Fa|FA|fa|Sol|SOL|sol|La|LA|la|Si|SI|si)';
+const NOTE_NAME_PATTERN = `(?:${SOLFEGE_NAME_PATTERN}|[A-G])(?:#|b)?`;
+const CHORD_SUFFIX_PATTERN = '(?:maj|min|dim|aug|sus|add|m|M|[0-9])*';
+const CHORD_PATTERN = new RegExp(`^(${NOTE_NAME_PATTERN})(.*)$`);
+const CHORD_NOTE_PATTERN = new RegExp(NOTE_NAME_PATTERN, 'g');
+const CHORD_TOKEN_PATTERN = new RegExp(
+  `\\b(${NOTE_NAME_PATTERN}${CHORD_SUFFIX_PATTERN}(?:\\/${NOTE_NAME_PATTERN})?)\\b`,
+  'g'
+);
+const MELODY_NOTE_PATTERN = new RegExp(`(^|[^A-Za-z0-9#b])(${SOLFEGE_NAME_PATTERN}|[A-G])(#|b)?([0-9]?)(?=$|[^A-Za-z0-9#b])`, 'g');
+
+function canonicalSolfegeName(name) {
+  const normalized = name.toLowerCase();
+  return {
+    do: 'Do',
+    re: 'Re',
+    mi: 'Mi',
+    fa: 'Fa',
+    sol: 'Sol',
+    la: 'La',
+    si: 'Si'
+  }[normalized] || name;
+}
+
+function normalizeNote(note) {
+  const solfegeMatch = note.match(new RegExp(`^(${SOLFEGE_NAME_PATTERN})(#|b)?$`));
+  if (solfegeMatch) {
+    const canonicalName = canonicalSolfegeName(solfegeMatch[1]);
+    const solfegeNote = `${canonicalName}${solfegeMatch[2] || ''}`;
+    return SOLFEGE_ENHARMONIC_NOTES[solfegeNote] || `${SOLFEGE_TO_ENGLISH[canonicalName]}${solfegeMatch[2] || ''}`;
+  }
+
+  return ENHARMONIC_NOTES[note] || note;
+}
+
+function usesSolfege(note) {
+  return new RegExp(`^(${SOLFEGE_NAME_PATTERN})(#|b)?$`).test(note);
+}
+
+function transposeNote(note, semitones) {
+  const normalized = normalizeNote(note);
+  const noteIndex = CHROMATIC_SCALE.indexOf(ENHARMONIC_NOTES[normalized] || normalized);
+  if (noteIndex === -1) return note;
+  
+  const transposedIndex = (noteIndex + semitones + CHROMATIC_SCALE.length * 10) % CHROMATIC_SCALE.length;
+  return usesSolfege(note) ? SOLFEGE_SCALE[transposedIndex] : CHROMATIC_SCALE[transposedIndex];
+}
+
+function transposeChord(chord, semitones) {
+  return chord.replace(CHORD_NOTE_PATTERN, (note) => transposeNote(note, semitones));
+}
+
+function looksLikeChordLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  if (looksLikeMelodyLine(line)) return false;
+
+  const hasBracketChord = /\[[^\]]+\]/.test(trimmed);
+  const hasChordQuality = new RegExp(`\\b${NOTE_NAME_PATTERN}(?:m|maj|min|dim|aug|sus|add|M|[0-9])`).test(trimmed);
+  const hasPositionedSpacing = /\S\s{2,}\S/.test(line) || /^\s{2,}\S/.test(line);
+  const hasChord = hasBracketChord || hasChordQuality || (hasPositionedSpacing && CHORD_TOKEN_PATTERN.test(trimmed));
+  CHORD_TOKEN_PATTERN.lastIndex = 0;
+  if (!hasChord) return false;
+  
+  const withoutChords = trimmed
+    .replace(/\[[^\]]+\]/g, '')
+    .replace(CHORD_TOKEN_PATTERN, '')
+    .replace(/[|\s,.\-]/g, '');
+    
+  return withoutChords.length === 0;
+}
+
+function looksLikeMelodyLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed || /\[[^\]]+\]/.test(trimmed)) return false;
+
+  const source = trimmed.startsWith('//') ? trimmed.slice(2).trim() : trimmed;
+  const hasMelodySeparator = /[-,;/\\]/.test(source);
+  const hasPositionedSpacing = /\S\s{2,}\S/.test(line) || /^\s{2,}\S/.test(line);
+  const hasChordQuality = new RegExp(`\\b${NOTE_NAME_PATTERN}(?:m|maj|min|dim|aug|sus|add|M|[0-9])`).test(source);
+  const notes = extractMelodyNotes(trimmed);
+  const leftovers = source
+    .replace(MELODY_NOTE_PATTERN, '')
+    .replace(/[|\s,;/\\-]/g, '');
+
+  if (leftovers !== '' || notes.length <= 1 || hasChordQuality || hasPositionedSpacing) {
+    return false;
+  }
+
+  return hasMelodySeparator || notes.length >= 3;
+}
+
+function transposeLyricsAndChords(text, semitones) {
+  if (!semitones) return text;
+  
+  return text.split('\n').map(line => {
+    if (looksLikeMelodyLine(line)) {
+      return transposeMelodyNotes(line, semitones);
+    }
+
+    const hasBracketChords = /\[[^\]]+\]/.test(line);
+    let transposedLine = line.replace(/\[([^\]]+)\]/g, (match, chord) => {
+      const chordMatch = chord.trim().match(CHORD_PATTERN);
+      return chordMatch ? `[${transposeChord(chord, semitones)}]` : match;
+    });
+
+    transposedLine = transposedLine.replace(/\{([^\}]+)\}/g, (match, note) => {
+      return `{${transposeMelodyNotes(note, semitones)}}`;
+    });
+    
+    if (!hasBracketChords && looksLikeChordLine(transposedLine)) {
+      transposedLine = transposedLine.replace(CHORD_TOKEN_PATTERN, chord => transposeChord(chord, semitones));
+    }
+    
+    return transposedLine;
+  }).join('\n');
+}
+
+function transposeMelodyNotes(text, semitones) {
+  if (!text || !semitones) return text || '';
+  return text.replace(MELODY_NOTE_PATTERN, (match, prefix = '', note, accidental = '', octave = '') => {
+    return `${prefix}${transposeNote(`${note}${accidental}`, semitones)}${octave}`;
+  });
+}
+
+function getSelectedTransposition() {
+  return (TRANSPOSING_INSTRUMENTS[selectedInstrument]?.semitones || 0) + manualTransposeSemitones;
+}
+
+function getDisplayKey(key) {
+  return key ? transposeChord(key, getSelectedTransposition()) : key;
+}
+
+function getDisplayLyrics(lyrics) {
+  return transposeLyricsAndChords(lyrics, getSelectedTransposition());
+}
+
+function getDisplayMelody(melody) {
+  return transposeMelodyNotes(melody, getSelectedTransposition());
+}
+
+function runTranspositionConsoleTests() {
+  console.group('LyricFlow transposition tests');
+  console.log('C para Sib (+2):', transposeNote('C', 2));
+  console.log('[C] [F] [G] para Sib:', transposeLyricsAndChords('[C] [F] [G]', 2));
+  console.log('[Rem] [Sib] para Sib:', transposeLyricsAndChords('[Rem] [Sib]', 2));
+  console.log('[C]{E}Santo para Sib:', transposeLyricsAndChords('[C]{E}Santo', 2));
+  console.log('C para Mib (-3):', transposeNote('C', -3));
+  console.log('[C] [Am] [F#m] para Mib:', transposeLyricsAndChords('[C] [Am] [F#m]', -3));
+  console.log('[C]{E}Santo para Mib:', transposeLyricsAndChords('[C]{E}Santo', -3));
+  console.log('Melodía C D E para Sib:', transposeMelodyNotes('C D E', 2));
+  console.log('Melodía C4 D4 E4 para Mib:', transposeMelodyNotes('C4 D4 E4', -3));
+  console.log('Melodía Re-Re-La para Sib:', transposeMelodyNotes('Re-Re-La', 2));
+  console.log('Melodía Re-Re-La para Mib:', transposeMelodyNotes('Re-Re-La', -3));
+  console.groupEnd();
+}
+
 // --- PARSER DE ACORDES Y LETRAS ---
 // Convierte una letra con corchetes en HTML estructurado para mostrar acordes flotantes
 function parseLyricsHTML(lyrics) {
   const lines = lyrics.split('\n');
-  return lines.map(line => {
-    // Si la línea está vacía, renderizar un espacio para mantener el salto de línea
+  const htmlLines = [];
+  let pendingChords = [];
+  let pendingMelody = [];
+
+  lines.forEach(line => {
     if (line.trim() === '') {
-      return '<div class="lyrics-line">&nbsp;</div>';
+      htmlLines.push('<div class="lyrics-line">&nbsp;</div>');
+      pendingChords = [];
+      pendingMelody = [];
+      return;
     }
-    
-    // Separar usando la expresión regular que captura [Acorde]
-    const parts = line.split(/(\[[^\]]+\])/);
+
+    if (looksLikeChordLine(line)) {
+      pendingChords = extractChordSequence(line);
+      return;
+    }
+
+    const standaloneMelody = extractStandaloneMelodyLine(line);
+    if (standaloneMelody.length) {
+      pendingMelody = standaloneMelody;
+      return;
+    }
+
+    htmlLines.push(renderLyricLine(line, pendingChords, pendingMelody));
+    pendingChords = [];
+    pendingMelody = [];
+  });
+
+  if (pendingChords.length || pendingMelody.length) {
+    htmlLines.push(renderNotationSequenceLine(pendingChords, pendingMelody));
+  }
+
+  return htmlLines.join('');
+}
+
+function renderLyricLine(line, chordSequence = [], melodySequence = []) {
+  if (chordSequence.length || melodySequence.length) {
+    return renderLineWithSequences(line, chordSequence, melodySequence);
+  }
+
+  return renderInlineNotationLine(line);
+}
+
+function renderInlineNotationLine(line) {
+    // Separar usando la expresión regular que captura [Acorde] y {Melodía}
+    const parts = line.split(/(\[[^\]]+\]|\{[^\}]+\})/);
     let lineHtml = '<div class="lyrics-line">';
     let currentChord = null;
+    let currentMelody = null;
     
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (part.startsWith('[') && part.endsWith(']')) {
         currentChord = part.slice(1, -1);
+      } else if (part.startsWith('{') && part.endsWith('}')) {
+        currentMelody = part.slice(1, -1);
       } else {
         const text = part;
-        if (currentChord) {
-          // Reemplazar espacios iniciales por non-breaking spaces para mantener alineación exacta
-          const displayText = text.startsWith(' ') ? '\u00A0' + text.slice(1) : text;
-          lineHtml += `<span class="chord-wrapper" data-chord="${escapeHTML(currentChord)}">${escapeHTML(displayText || '\u00A0')}</span>`;
+        if (currentChord || currentMelody) {
+          lineHtml += renderTextWithNotation(text, currentChord, currentMelody);
           currentChord = null;
+          currentMelody = null;
         } else {
           if (text) {
             lineHtml += `<span>${escapeHTML(text)}</span>`;
@@ -200,14 +472,192 @@ function parseLyricsHTML(lyrics) {
       }
     }
     
-    // Si quedó un acorde colgando al final de la línea
-    if (currentChord) {
-      lineHtml += `<span class="chord-wrapper" data-chord="${escapeHTML(currentChord)}">&nbsp;</span>`;
+    // Si quedó un acorde o nota colgando al final de la línea
+    if (currentChord || currentMelody) {
+      lineHtml += renderNotationToken('\u00A0', currentChord, currentMelody);
     }
     
     lineHtml += '</div>';
     return lineHtml;
+}
+
+function renderLineWithSequences(line, chordSequence, melodySequence) {
+  const tokens = line.split(/(\s+)/);
+  const wordPositions = getWordPositions(line);
+  const chordByWordIndex = mapPositionedItemsToWords(chordSequence, wordPositions);
+  const sequentialChords = normalizeNotationSequence(chordSequence).filter(item => item.index == null);
+  const melodyByWord = distributeMelodyAcrossWords(melodySequence, wordPositions.length);
+  let sequentialChordIndex = 0;
+  let wordIndex = 0;
+  let lineHtml = '<div class="lyrics-line">';
+
+  tokens.forEach(token => {
+    if (!token) return;
+    if (/^\s+$/.test(token)) {
+      lineHtml += `<span>${escapeHTML(token)}</span>`;
+      return;
+    }
+
+    const positionedChord = chordByWordIndex.get(wordIndex) || '';
+    const sequentialChord = sequentialChords[sequentialChordIndex]?.value || '';
+    const chord = positionedChord || sequentialChord;
+    const melody = melodyByWord[wordIndex] || '';
+    if (!positionedChord && sequentialChord) sequentialChordIndex += 1;
+    wordIndex += 1;
+    lineHtml += renderNotationToken(token, chord, melody);
+  });
+
+  lineHtml += '</div>';
+  return lineHtml;
+}
+
+function distributeMelodyAcrossWords(melodySequence, wordCount) {
+  if (!melodySequence.length || wordCount <= 0) return [];
+  if (melodySequence.length <= wordCount) return melodySequence;
+
+  const groups = [];
+  let noteIndex = 0;
+
+  for (let wordIndex = 0; wordIndex < wordCount; wordIndex++) {
+    const remainingNotes = melodySequence.length - noteIndex;
+    const remainingWords = wordCount - wordIndex;
+    const takeCount = Math.ceil(remainingNotes / remainingWords);
+    groups.push(melodySequence.slice(noteIndex, noteIndex + takeCount).join('-'));
+    noteIndex += takeCount;
+  }
+
+  return groups;
+}
+
+function renderNotationSequenceLine(chordSequence, melodySequence) {
+  const normalizedChords = normalizeNotationSequence(chordSequence);
+  const maxLength = Math.max(normalizedChords.length, melodySequence.length);
+  let lineHtml = '<div class="lyrics-line notation-only-line">';
+
+  for (let i = 0; i < maxLength; i++) {
+    lineHtml += renderNotationToken('\u00A0', normalizedChords[i]?.value || '', melodySequence[i] || '');
+  }
+
+  lineHtml += '</div>';
+  return lineHtml;
+}
+
+function extractChordSequence(line) {
+  const bracketChords = [...line.matchAll(/\[([^\]]+)\]/g)]
+    .map(match => ({ value: match[1].trim(), index: match.index }));
+
+  if (bracketChords.length) {
+    return bracketChords;
+  }
+
+  return [...line.matchAll(CHORD_TOKEN_PATTERN)]
+    .map(match => ({ value: match[1], index: match.index }));
+}
+
+function normalizeNotationSequence(sequence) {
+  return sequence.map((item, index) => {
+    if (typeof item === 'string') {
+      return { value: item, index: null, order: index };
+    }
+
+    return {
+      value: item?.value || '',
+      index: Number.isFinite(item?.index) ? item.index : null,
+      order: index
+    };
+  }).filter(item => item.value);
+}
+
+function getWordPositions(line) {
+  return [...line.matchAll(/\S+/g)].map((match, index) => ({
+    index,
+    start: match.index,
+    end: match.index + match[0].length
+  }));
+}
+
+function mapPositionedItemsToWords(sequence, wordPositions) {
+  const mapped = new Map();
+  const positionedItems = normalizeNotationSequence(sequence).filter(item => item.index != null);
+
+  positionedItems.forEach(item => {
+    const nearestWord = wordPositions.reduce((best, word) => {
+      const distance = Math.abs(word.start - item.index);
+      if (!best || distance < best.distance) {
+        return { word, distance };
+      }
+
+      return best;
+    }, null);
+
+    if (nearestWord) {
+      mapped.set(nearestWord.word.index, item.value);
+    }
+  });
+
+  return mapped;
+}
+
+function extractStandaloneMelodyLine(line) {
+  const trimmed = line.trim();
+  const source = trimmed.startsWith('//') ? trimmed.slice(2).trim() : trimmed;
+  const bracedNotes = [...source.matchAll(/\{([^\}]+)\}/g)]
+    .flatMap(match => extractMelodyNotes(match[1]));
+
+  if (bracedNotes.length && source.replace(/\{[^\}]+\}/g, '').trim() === '') {
+    return bracedNotes;
+  }
+
+  const notes = extractMelodyNotes(source);
+  const leftovers = source
+    .replace(MELODY_NOTE_PATTERN, '')
+    .replace(/[|\s,;/\\-]/g, '');
+
+  return notes.length && leftovers === '' ? notes : [];
+}
+
+function extractMelodyNotes(text) {
+  return [...text.matchAll(MELODY_NOTE_PATTERN)]
+    .map(match => `${match[2]}${match[3] || ''}${match[4] || ''}`);
+}
+
+function renderTextWithNotation(text, chord, melody) {
+  const melodyNotes = melody ? melody.trim().split(/\s+/).filter(Boolean) : [];
+  if (melodyNotes.length <= 1) {
+    return renderNotationToken(text || '\u00A0', chord, melody);
+  }
+
+  const tokens = (text || '\u00A0').split(/(\s+)/);
+  let melodyIndex = 0;
+  let chordWasUsed = false;
+  let renderedAnyWord = false;
+
+  const html = tokens.map(token => {
+    if (!token) return '';
+    if (/^\s+$/.test(token)) return `<span>${escapeHTML(token)}</span>`;
+
+    renderedAnyWord = true;
+    const noteForWord = melodyNotes[melodyIndex] || '';
+    const chordForWord = chordWasUsed ? '' : chord;
+    melodyIndex += 1;
+    chordWasUsed = true;
+    return renderNotationToken(token, chordForWord, noteForWord);
   }).join('');
+
+  return renderedAnyWord ? html : renderNotationToken('\u00A0', chord, melody);
+}
+
+function renderNotationToken(text, chord, melody) {
+  const safeText = escapeHTML(text || '\u00A0');
+  const safeChord = chord ? escapeHTML(chord) : '';
+  const safeMelody = melody ? escapeHTML(melody) : '';
+  return `
+    <span class="notation-wrapper">
+      <span class="inline-chord">${safeChord}</span>
+      <span class="inline-melody">${safeMelody}</span>
+      <span class="inline-lyric">${safeText}</span>
+    </span>
+  `;
 }
 
 function escapeHTML(str) {
@@ -278,7 +728,7 @@ function renderSongsList(query = '') {
         <span class="song-item-title">${escapeHTML(song.title)}</span>
         <span class="song-item-artist">${escapeHTML(song.artist)}</span>
       </div>
-      ${song.key ? `<span class="song-item-badge">${escapeHTML(song.key)}</span>` : ''}
+      ${song.key ? `<span class="song-item-badge">${escapeHTML(getDisplayKey(song.key))}</span>` : ''}
     `;
     
     item.addEventListener('click', () => selectSong(song.id));
@@ -301,14 +751,19 @@ function selectSong(songId) {
   // Rellenar datos
   DOM.songDetailTitle.textContent = song.title;
   DOM.songDetailArtist.textContent = song.artist;
-  DOM.songDetailKey.textContent = song.key || 'N/A';
+  DOM.songDetailKey.textContent = getDisplayKey(song.key) || 'N/A';
   DOM.songDetailBpm.textContent = song.bpm ? `${song.bpm} BPM` : 'Sin tempo';
+  const displayMelody = getDisplayMelody(song.melody || '');
+  DOM.melodyViewer.dataset.hasMelody = displayMelody.trim() ? 'true' : 'false';
+  DOM.melodyViewer.innerHTML = displayMelody.trim()
+    ? `<div class="melody-label">Melodía</div><pre>${escapeHTML(displayMelody)}</pre>`
+    : '';
   
   // Renderizar letras con acordes
-  DOM.lyricsViewer.innerHTML = parseLyricsHTML(song.lyrics);
+  DOM.lyricsViewer.innerHTML = parseLyricsHTML(getDisplayLyrics(song.lyrics));
   
-  // Configurar visualización de acordes
-  updateChordsVisibility();
+  // Configurar visualización de acordes y melodía
+  updateNotationVisibility();
   
   // Actualizar clase activa en la barra lateral
   document.querySelectorAll('.song-item').forEach(item => {
@@ -322,16 +777,33 @@ function selectSong(songId) {
   switchMobilePanel('main');
 }
 
-function updateChordsVisibility() {
-  if (showChords) {
-    DOM.lyricsViewer.classList.remove('hide-chords');
-    DOM.btnToggleChords.classList.add('btn-accent');
-    DOM.btnToggleChords.classList.remove('btn-secondary');
-  } else {
-    DOM.lyricsViewer.classList.add('hide-chords');
-    DOM.btnToggleChords.classList.remove('btn-accent');
-    DOM.btnToggleChords.classList.add('btn-secondary');
+function applyNotationModeToElements(mode, lyricsElement, melodyElement, buttonElement) {
+  const showChords = mode === 'all' || mode === 'chords';
+  const showMelody = (mode === 'all' || mode === 'melody') && melodyElement?.dataset.hasMelody === 'true';
+  const showInlineMelody = mode === 'all' || mode === 'melody';
+  
+  lyricsElement.classList.toggle('hide-chords', !showChords);
+  lyricsElement.classList.toggle('hide-melody', !showInlineMelody);
+  if (melodyElement) {
+    melodyElement.style.display = showMelody ? 'block' : 'none';
   }
+  
+  if (buttonElement) {
+    buttonElement.classList.toggle('btn-accent', mode !== 'lyrics');
+    buttonElement.classList.toggle('btn-secondary', mode === 'lyrics');
+    const label = buttonElement.querySelector('span') || buttonElement;
+    label.textContent = NOTATION_VIEW_LABELS[mode];
+    buttonElement.title = `Vista: ${NOTATION_VIEW_LABELS[mode]}`;
+  }
+}
+
+function getNextNotationMode(currentMode) {
+  const currentIndex = NOTATION_VIEW_MODES.indexOf(currentMode);
+  return NOTATION_VIEW_MODES[(currentIndex + 1) % NOTATION_VIEW_MODES.length];
+}
+
+function updateNotationVisibility() {
+  applyNotationModeToElements(notationViewMode, DOM.lyricsViewer, DOM.melodyViewer, DOM.btnToggleChords);
 }
 
 // 2. Renderizar la Lista del Setlist de Ensayo
@@ -373,7 +845,7 @@ function renderRehearsalList() {
     item.innerHTML = `
       <div class="rehearsal-index">${index + 1}</div>
       <div class="rehearsal-song-title" style="cursor: pointer; text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color var(--transition-fast);" onmouseover="this.style.textDecorationColor='var(--color-accent)'" onmouseout="this.style.textDecorationColor='transparent'">${escapeHTML(song.title)}</div>
-      ${song.key ? `<div class="rehearsal-song-key">${escapeHTML(song.key)}</div>` : ''}
+      ${song.key ? `<div class="rehearsal-song-key">${escapeHTML(getDisplayKey(song.key))}</div>` : ''}
       
       <!-- Controles de Ordenación -->
       <div style="display: flex; gap: 0.15rem;">
@@ -459,6 +931,7 @@ function openCreateForm() {
   DOM.songArtistInput.value = '';
   DOM.songKeySelect.value = 'C';
   DOM.songBpmInput.value = '';
+  DOM.songMelodyInput.value = '';
   DOM.songLyricsInput.value = '';
   
   DOM.welcomeView.style.display = 'none';
@@ -482,6 +955,7 @@ function openEditForm() {
   DOM.songArtistInput.value = song.artist;
   DOM.songKeySelect.value = song.key || 'C';
   DOM.songBpmInput.value = song.bpm || '';
+  DOM.songMelodyInput.value = song.melody || '';
   DOM.songLyricsInput.value = song.lyrics;
   
   DOM.welcomeView.style.display = 'none';
@@ -494,7 +968,9 @@ function saveSongFromForm() {
   const artist = DOM.songArtistInput.value.trim();
   const key = DOM.songKeySelect.value;
   const bpm = DOM.songBpmInput.value ? parseInt(DOM.songBpmInput.value) : null;
+  const melody = DOM.songMelodyInput.value.trim();
   const lyrics = DOM.songLyricsInput.value;
+  const updatedAt = Date.now();
   
   if (!title || !artist || !lyrics) {
     showToast("Por favor rellena los campos obligatorios");
@@ -511,7 +987,9 @@ function saveSongFromForm() {
         artist,
         key,
         bpm,
-        lyrics
+        melody,
+        lyrics,
+        updatedAt
       };
       saveSongs();
       showToast("Canción guardada con éxito");
@@ -526,7 +1004,9 @@ function saveSongFromForm() {
       artist,
       key,
       bpm,
-      lyrics
+      melody,
+      lyrics,
+      updatedAt
     };
     songs.push(newSong);
     saveSongs();
@@ -570,7 +1050,7 @@ function startPresentationModeAtIndex(index) {
   if (rehearsalSetlist.length === 0) return;
   
   presentationIndex = index;
-  showChordsPresentation = showChords;
+  presentationNotationViewMode = notationViewMode;
   DOM.presentationMode.classList.add('active');
   
   renderPresentationSong();
@@ -598,16 +1078,20 @@ function renderPresentationSong() {
   
   DOM.presIndex.textContent = `${presentationIndex + 1} / ${rehearsalSetlist.length}`;
   DOM.presTitle.textContent = song.title;
-  DOM.presArtist.textContent = `${song.artist} | Tono: ${song.key || 'N/A'}`;
+  DOM.presArtist.textContent = `${song.artist} | Tono: ${getDisplayKey(song.key) || 'N/A'}`;
   
-  // Renderizar letras
-  DOM.presLyricsArea.innerHTML = parseLyricsHTML(song.lyrics);
+  // Renderizar melodía y letras
+  const presentationMelody = getDisplayMelody(song.melody || '');
+  DOM.presLyricsArea.innerHTML = `
+    ${presentationMelody.trim() ? `<div class="presentation-melody" data-has-melody="true"><div class="melody-label">Melodía</div><pre>${escapeHTML(presentationMelody)}</pre></div>` : ''}
+    ${parseLyricsHTML(getDisplayLyrics(song.lyrics))}
+  `;
   
   // Aplicar escala de fuente
   DOM.presLyricsArea.style.fontSize = `${fontSizePercent}%`;
   
-  // Alternar acordes
-  updatePresentationChords();
+  // Alternar acordes y melodía
+  updatePresentationNotationVisibility();
   
   // Configurar metrónomo
   if (song.bpm) {
@@ -625,16 +1109,10 @@ function renderPresentationSong() {
   DOM.presLyricsScroll.scrollTop = 0;
 }
 
-function updatePresentationChords() {
-  if (showChordsPresentation) {
-    DOM.presLyricsArea.classList.remove('hide-chords');
-    DOM.btnPresChords.classList.add('btn-accent');
-    DOM.btnPresChords.classList.remove('btn-secondary');
-  } else {
-    DOM.presLyricsArea.classList.add('hide-chords');
-    DOM.btnPresChords.classList.remove('btn-accent');
-    DOM.btnPresChords.classList.add('btn-secondary');
-  }
+function updatePresentationNotationVisibility() {
+  const melodyElement = DOM.presLyricsArea.querySelector('.presentation-melody');
+  if (melodyElement) melodyElement.dataset.hasMelody = 'true';
+  applyNotationModeToElements(presentationNotationViewMode, DOM.presLyricsArea, melodyElement, DOM.btnPresChords);
 }
 
 // Navegación en presentación
@@ -727,15 +1205,46 @@ function stopAutoScroll() {
 }
 
 // --- EXPORTACIÓN E IMPORTACIÓN JSON ---
+function getExportFileName() {
+  return `lyricflow_songs_${new Date().toISOString().slice(0,10)}.json`;
+}
+
+function getExportJson() {
+  return JSON.stringify(songs, null, 2);
+}
+
 function exportSongsData() {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(songs, null, 2));
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(getExportJson());
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `lyricflow_songs_${new Date().toISOString().slice(0,10)}.json`);
+  downloadAnchor.setAttribute("download", getExportFileName());
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
   showToast("Base de datos exportada");
+}
+
+async function shareSongsData() {
+  const fileName = getExportFileName();
+  const jsonBlob = new Blob([getExportJson()], { type: 'application/json' });
+  const jsonFile = new File([jsonBlob], fileName, { type: 'application/json' });
+  
+  if (navigator.canShare && navigator.canShare({ files: [jsonFile] })) {
+    try {
+      await navigator.share({
+        files: [jsonFile],
+        title: 'Copia de LyricFlow',
+        text: 'Copia de seguridad de canciones de LyricFlow'
+      });
+      showToast("Copia lista para compartir");
+      return;
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+    }
+  }
+  
+  exportSongsData();
+  showToast("Si no ves el panel de compartir, revisa Descargas");
 }
 
 function triggerImportFileInput() {
@@ -807,12 +1316,54 @@ function switchMobilePanel(panelName) {
   }
 }
 
+function refreshTransposedViews() {
+  if (currentSongId && DOM.detailView.style.display !== 'none') {
+    selectSong(currentSongId);
+  }
+  
+  renderRehearsalList();
+  
+  if (DOM.presentationMode.classList.contains('active')) {
+    renderPresentationSong();
+  }
+}
+
+function initInstrumentSelector() {
+  const savedInstrument = localStorage.getItem('lyricflow_selected_instrument') || 'concert';
+  selectedInstrument = TRANSPOSING_INSTRUMENTS[savedInstrument] ? savedInstrument : 'concert';
+  if (DOM.instrumentSelect) {
+    DOM.instrumentSelect.value = selectedInstrument;
+  }
+
+  const savedManualTranspose = localStorage.getItem('lyricflow_manual_transpose') || '0';
+  manualTransposeSemitones = parseInt(savedManualTranspose, 10) || 0;
+  if (DOM.transposeSelect) {
+    DOM.transposeSelect.value = String(manualTransposeSemitones);
+  }
+}
+
 // --- CONFIGURAR LISTENERS ---
 function setupEventListeners() {
   // Buscador
   DOM.searchInput.addEventListener('input', (e) => {
     renderSongsList(e.target.value);
   });
+
+  if (DOM.instrumentSelect) {
+    DOM.instrumentSelect.addEventListener('change', (e) => {
+      selectedInstrument = e.target.value;
+      localStorage.setItem('lyricflow_selected_instrument', selectedInstrument);
+      refreshTransposedViews();
+    });
+  }
+
+  if (DOM.transposeSelect) {
+    DOM.transposeSelect.addEventListener('change', (e) => {
+      manualTransposeSemitones = parseInt(e.target.value, 10) || 0;
+      localStorage.setItem('lyricflow_manual_transpose', String(manualTransposeSemitones));
+      refreshTransposedViews();
+    });
+  }
   
   // Botones
   DOM.btnNewSong.addEventListener('click', openCreateForm);
@@ -833,8 +1384,8 @@ function setupEventListeners() {
   
   // Detalle Canción
   DOM.btnToggleChords.addEventListener('click', () => {
-    showChords = !showChords;
-    updateChordsVisibility();
+    notationViewMode = getNextNotationMode(notationViewMode);
+    updateNotationVisibility();
   });
   
   DOM.btnAddToSetlist.addEventListener('click', () => {
@@ -849,8 +1400,10 @@ function setupEventListeners() {
   DOM.btnStartRehearsal.addEventListener('click', startPresentationMode);
   DOM.btnExportData.addEventListener('click', exportSongsData);
   DOM.btnImportData.addEventListener('click', triggerImportFileInput);
+  if (DOM.btnShareData) DOM.btnShareData.addEventListener('click', shareSongsData);
   if (DOM.btnExportDataLeft) DOM.btnExportDataLeft.addEventListener('click', exportSongsData);
   if (DOM.btnImportDataLeft) DOM.btnImportDataLeft.addEventListener('click', triggerImportFileInput);
+  if (DOM.btnShareDataLeft) DOM.btnShareDataLeft.addEventListener('click', shareSongsData);
   DOM.importFileInput.addEventListener('change', importSongsData);
   
   // Presentación
@@ -869,8 +1422,8 @@ function setupEventListeners() {
   });
   
   DOM.btnPresChords.addEventListener('click', () => {
-    showChordsPresentation = !showChordsPresentation;
-    updatePresentationChords();
+    presentationNotationViewMode = getNextNotationMode(presentationNotationViewMode);
+    updatePresentationNotationVisibility();
   });
   
   DOM.btnFontInc.addEventListener('click', () => {
@@ -916,7 +1469,7 @@ function setupEventListeners() {
     // Auto-rellenar configuraciones si existen
     const savedConfig = localStorage.getItem('lyricflow_sync_config');
     const savedCode = localStorage.getItem('lyricflow_sync_band_code');
-    if (savedConfig) DOM.syncFirebaseConfig.value = savedConfig;
+    DOM.syncFirebaseConfig.value = savedConfig || JSON.stringify(DEFAULT_FIREBASE_CONFIG);
     if (savedCode) DOM.syncBandCode.value = savedCode;
   });
   
@@ -925,10 +1478,10 @@ function setupEventListeners() {
   });
   
   DOM.btnSaveSyncConfig.addEventListener('click', () => {
-    const configText = DOM.syncFirebaseConfig.value.trim();
+    const configText = DOM.syncFirebaseConfig.value.trim() || JSON.stringify(DEFAULT_FIREBASE_CONFIG);
     const bandCode = DOM.syncBandCode.value.trim();
-    if (!configText || !bandCode) {
-      showToast("Por favor ingresa todos los campos");
+    if (!bandCode) {
+      showToast("Escribe un código de banda o sala");
       return;
     }
     connectFirebase(configText, bandCode);
@@ -962,7 +1515,7 @@ function setSyncStatusUI(connected) {
 }
 
 function autoConnectFirebase() {
-  const savedConfig = localStorage.getItem('lyricflow_sync_config');
+  const savedConfig = localStorage.getItem('lyricflow_sync_config') || JSON.stringify(DEFAULT_FIREBASE_CONFIG);
   const savedCode = localStorage.getItem('lyricflow_sync_band_code');
   
   if (savedConfig && savedCode) {
@@ -1057,6 +1610,39 @@ function disconnectFirebase() {
   DOM.syncModal.style.display = 'none';
 }
 
+function mergeSongsPreferLocal(localSongs, cloudSongs) {
+  const mergedById = new Map();
+  let changed = false;
+
+  (cloudSongs || []).forEach(song => {
+    if (song?.id) mergedById.set(song.id, song);
+  });
+
+  (localSongs || []).forEach(localSong => {
+    if (!localSong?.id) return;
+    const cloudSong = mergedById.get(localSong.id);
+
+    if (!cloudSong) {
+      mergedById.set(localSong.id, localSong);
+      changed = true;
+      return;
+    }
+
+    const localTime = localSong.updatedAt || 0;
+    const cloudTime = cloudSong.updatedAt || 0;
+    const preferredSong = localTime >= cloudTime ? localSong : cloudSong;
+    if (JSON.stringify(preferredSong) !== JSON.stringify(cloudSong)) {
+      changed = true;
+    }
+    mergedById.set(localSong.id, preferredSong);
+  });
+
+  return {
+    songs: Array.from(mergedById.values()),
+    needsUpload: changed || JSON.stringify(cloudSongs || []) !== JSON.stringify(Array.from(mergedById.values()))
+  };
+}
+
 function startRealtimeSync(bandCode) {
   if (!db) return;
   
@@ -1088,26 +1674,15 @@ function startRealtimeSync(bandCode) {
             localStorage.setItem('lyricflow_setlist_backup', localStorage.getItem('lyricflow_setlist'));
           }
           
-          // 2. Fusión inteligente en la primera sincronización (no sobrescribir local)
-          let mergedSongs = [...cloudData.songs];
-          let needsUpload = false;
-          
-          songs.forEach(localSong => {
-            const existsInCloud = mergedSongs.some(s => s.id === localSong.id);
-            if (!existsInCloud) {
-              mergedSongs.push(localSong);
-              needsUpload = true;
-            }
-          });
-          
-          if (needsUpload) {
-            songs = mergedSongs;
+          // 2. Fusión inteligente en la primera sincronización.
+          // Si una misma canción existe local y en nube, gana la copia más reciente.
+          // Las canciones que existan solo en la nube se añaden sin borrar las locales.
+          const merged = mergeSongsPreferLocal(songs, cloudData.songs);
+
+          if (merged.needsUpload || JSON.stringify(merged.songs) !== JSON.stringify(songs)) {
+            songs = merged.songs;
             localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
-            uploadLocalData(docRef);
-            changed = true;
-          } else if (JSON.stringify(cloudData.songs) !== JSON.stringify(songs)) {
-            songs = cloudData.songs;
-            localStorage.setItem('lyricflow_songs', JSON.stringify(songs));
+            if (merged.needsUpload) uploadLocalData(docRef);
             changed = true;
           }
         } else {
@@ -1141,7 +1716,9 @@ function startRealtimeSync(bandCode) {
             DOM.welcomeView.style.display = 'flex';
           }
         }
-        showToast(firstSync ? "Sincronización inicial completada" : "Nube sincronizada");
+        if (!firstSync) {
+          showToast("Nube sincronizada");
+        }
       }
     }
   }, (error) => {
@@ -1202,4 +1779,3 @@ function toggleTheme() {
     setTheme('light');
   }
 }
-

@@ -43,6 +43,36 @@
           <input type="text" id="search-input" placeholder="Buscar título, artista o letra...">
         </div>
 
+        <!-- Selector de Instrumento Transpositor -->
+        <div class="instrument-selector">
+          <label for="instrument-select">Instrumento</label>
+          <select id="instrument-select">
+            <option value="concert">Violín / Flauta (Do)</option>
+            <option value="bb">Trompeta / Clarinete / Saxo Tenor (Sib)</option>
+            <option value="eb">Saxo Alto / Saxo Barítono (Mib)</option>
+            <option value="f">Trompa (Fa)</option>
+          </select>
+        </div>
+
+        <div class="instrument-selector">
+          <label for="transpose-select">Tono</label>
+          <select id="transpose-select">
+            <option value="0">Original</option>
+            <option value="1">Subir 1 semitono</option>
+            <option value="2">Subir 1 tono</option>
+            <option value="3">Subir 1 tono y medio</option>
+            <option value="4">Subir 2 tonos</option>
+            <option value="5">Subir cuarta justa</option>
+            <option value="6">Subir tritono</option>
+            <option value="-1">Bajar 1 semitono</option>
+            <option value="-2">Bajar 1 tono</option>
+            <option value="-3">Bajar 1 tono y medio</option>
+            <option value="-4">Bajar 2 tonos</option>
+            <option value="-5">Bajar cuarta justa</option>
+            <option value="-6">Bajar tritono</option>
+          </select>
+        </div>
+
         <!-- Botón Añadir Canción -->
         <button id="btn-new-song" class="btn-add-float">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -58,6 +88,10 @@
           <button id="btn-import-data-left" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.55rem 0.5rem;" title="Importar canciones desde archivo JSON">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             Importar
+          </button>
+          <button id="btn-share-data-left" class="btn btn-accent" style="grid-column: 1 / -1; font-size: 0.8rem; padding: 0.55rem 0.5rem;" title="Compartir o guardar una copia en Archivos">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+            Compartir copia
           </button>
         </div>
 
@@ -124,6 +158,9 @@
         </div>
         
         <!-- Contenedor Letra -->
+        <div id="melody-viewer" class="melody-display" style="display: none;">
+          <!-- Melodía transpuesta dinámicamente -->
+        </div>
         <div id="lyrics-viewer" class="lyrics-scroll-area">
           <!-- Letras formateadas dinámicamente -->
         </div>
@@ -200,10 +237,28 @@
             </div>
 
             <div class="form-group">
-              <label for="song-lyrics">Letra con Acordes (usa corchetes [C] para los acordes)</label>
+              <label for="song-lyrics">Letra con Acordes y Melodía</label>
               <textarea id="song-lyrics" required placeholder="Ej:
-[Bm] Ella dur[G]mió al ca[D]lor de las [A]masas
-[Bm] Y yo des[G]perté..."></textarea>
+[Do] [Fa] [Sol]
+Re Re Mi
+Santo Santo Dios
+
+Ej. con menores/bemoles:
+[Rem] [Sib]
+Re-Re-Re-La-Sol-Fa-Mi-Re
+Aclamad a Dios con alegría toda la tierra
+
+También sirve:
+[Do]{Re}Santo [Fa]{Mi}Santo
+
+O una melodía sola arriba de la letra:
+Re-Re-Re-La-Sol-Fa-Mi-Re
+Aclamad a Dios con alegría toda la tierra"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="song-melody">Melodía general (opcional)</label>
+              <textarea id="song-melody" placeholder="Ej: C D E F G A B C&#10;o: C4 D4 E4 G4" style="min-height: 90px;"></textarea>
             </div>
           </div>
 
@@ -255,6 +310,9 @@
             </button>
             <button id="btn-import-data" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 0.25rem;" title="Importar canciones desde JSON">
               Importar
+            </button>
+            <button id="btn-share-data" class="btn btn-accent" style="grid-column: 1 / -1; font-size: 0.8rem; padding: 0.5rem 0.25rem;" title="Compartir o guardar una copia en Archivos">
+              Compartir copia
             </button>
             <input type="file" id="import-file-input" accept=".json" style="display: none;">
           </div>
@@ -373,7 +431,7 @@
       </div>
       <div class="modal-body">
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.5;">
-          Sincroniza tus letras en tiempo real entre múltiples dispositivos usando tu propio proyecto de Firebase.
+          Sincroniza tus letras en tiempo real entre múltiples dispositivos. Usa el mismo código de sala en todos.
         </p>
         
         <div class="form-group" style="margin-bottom: 1rem;">
@@ -384,8 +442,8 @@
           </small>
         </div>
 
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label for="sync-firebase-config">Configuración de Firebase (JSON) *</label>
+        <div class="form-group" style="margin-bottom: 1rem; display: none;">
+          <label for="sync-firebase-config">Configuración de Firebase (JSON)</label>
           <textarea id="sync-firebase-config" placeholder='{"apiKey": "AIzaSy...", "authDomain": "...", ...}' style="font-family: var(--font-mono); font-size: 0.8rem; min-height: 120px;"></textarea>
           <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.2rem; display: block;">
             Pega el objeto "firebaseConfig" que te proporciona la consola de Firebase.
@@ -393,12 +451,8 @@
         </div>
         
         <div class="sync-instructions" style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.75rem; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.4;">
-          <strong>¿Cómo obtener tu configuración de Firebase gratis?</strong>
-          <ol style="margin-left: 1.2rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.2rem;">
-            <li>Entra en <a href="https://console.firebase.google.com/" target="_blank" style="color: var(--color-accent);">Firebase Console</a> y crea un proyecto.</li>
-            <li>Crea una app web en tu proyecto y copia el objeto <code>firebaseConfig</code>.</li>
-            <li>Crea una base de datos <strong>Cloud Firestore</strong> en modo de prueba.</li>
-          </ol>
+          <strong>Configuración lista</strong>
+          <p style="margin-top: 0.25rem;">Firebase ya está configurado. Solo escribe un código de sala fácil de recordar, por ejemplo <code>evergreen-love</code>, y usa ese mismo código en los demás dispositivos.</p>
         </div>
       </div>
       <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
