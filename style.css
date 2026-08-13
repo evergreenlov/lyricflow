@@ -628,6 +628,10 @@ body {
   gap: 0.75rem;
 }
 
+.editor-header-save {
+  display: none;
+}
+
 /* Botones Comunes */
 .btn {
   display: inline-flex;
@@ -1070,6 +1074,12 @@ body {
   
   .mobile-nav-bar {
     display: grid;
+  }
+
+  .editor-header-save {
+    display: inline-flex;
+    min-height: 40px;
+    padding-inline: 1rem;
   }
 
   .editor-form {
