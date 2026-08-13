@@ -1072,6 +1072,34 @@ body {
     display: grid;
   }
 
+  .editor-form {
+    min-height: 0;
+  }
+
+  .form-body {
+    padding: 1rem;
+    padding-bottom: 7rem;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    padding: 0.85rem 1rem calc(0.85rem + env(safe-area-inset-bottom));
+    background: rgba(17, 19, 30, 0.96);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.28);
+  }
+
+  .form-actions .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
   .presentation-lyrics-container {
     padding: 2rem 2.5rem;
   }
