@@ -178,12 +178,23 @@ function saveSetlist() {
 }
 
 // --- NOTIFICACIONES TOAST ---
+const QUIET_TOAST_MESSAGES = new Set([
+  'Operación realizada con éxito',
+  'Canción guardada con éxito',
+  'Canción creada con éxito',
+  'Canción añadida al setlist de ensayo',
+  'Canción quitada del setlist',
+  'Nube sincronizada'
+]);
+
 function showToast(message) {
+  if (QUIET_TOAST_MESSAGES.has(message)) return;
+
   DOM.toastMessage.textContent = message;
   DOM.toast.classList.add('show');
   setTimeout(() => {
     DOM.toast.classList.remove('show');
-  }, 3000);
+  }, 1800);
 }
 
 // --- TRANSPOSICIÓN PARA INSTRUMENTOS ---
